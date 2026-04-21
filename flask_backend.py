@@ -2,17 +2,17 @@ from flask import Flask, request, jsonify, send_from_directory
 
 app = Flask(__name__)
 
-# тут храним все пришедшие пакеты пока сервер работает
+# Global list to store all received packets while the server is running
 packets = []
 
-# принимаем пакеты от script.py, парсим и кладем в список
+# Receive and parse incoming packet data from the sender script.
 @app.route('/receive', methods=['POST'])
 def receive_data():
     data = request.get_json()
     print(f"Received data: {data}")
 
     for row in data:
-        # берем только то что нужно фронтенду — координаты, время, suspicious и страну
+        # Extract only the fields required by the frontend
         packets.append({
             "ip":         row.get("ip address"),
             "lat":        row["Latitude"],
@@ -23,11 +23,12 @@ def receive_data():
         })
     return jsonify({'status': 'success'}), 200
 
-# фронтенд забирает все накопленные пакеты через этот эндпоинт
+# Endpoint for the frontend to retrieve all accumulated packets.
 @app.route('/data', methods=['GET'])
 def get_data():
     return jsonify(packets)
 
+# Serve the main frontend HTML file.
 @app.route('/')
 def index():
     return send_from_directory('.', 'index.html')
