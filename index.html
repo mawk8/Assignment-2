@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Monitor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --bg: #111c2b;
+            --panel-bg: rgba(16, 28, 50, 0.92);
+            --border: rgba(100, 180, 220, 0.3);
+            --cyan: #50d0f0;
+            --red: #f06070;
+            --green: #50e0a0;
+            --text: #90b8d0;
+            --text-bright: #d8eef8;
+            --mono: 'Share Tech Mono', monospace;
+            --sans: 'Rajdhani', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--mono);
+            overflow: hidden;
+            height: 100vh; width: 100vw;
+        }
+
+        canvas { display: block; position: absolute; inset: 0; }
+
+        body::after {
+            content: '';
+            position: fixed; inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.015) 2px, rgba(0,0,0,0.015) 4px);
+            pointer-events: none; z-index: 200;
+        }
+
+        /* LEFT PANEL — starts from top now (no header) */
+        #left-panel {
+            position: absolute; left: 18px; top: 18px;
+            width: 255px; z-index: 10;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px; padding: 12px 14px;
+            backdrop-filter: blur(14px);
+        }
+
+        .card-title {
+            font-size: 9px; letter-spacing: 3px;
+            color: var(--cyan); margin-bottom: 10px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border); padding-bottom: 6px;
+        }
+
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+        .stat-box {
+            background: rgba(80,208,240,0.06);
+            border: 1px solid rgba(80,208,240,0.18);
+            border-radius: 3px; padding: 8px 6px; text-align: center;
+        }
+        .stat-num {
+            font-family: var(--sans); font-weight: 700; font-size: 22px;
+            display: block; line-height: 1;
+        }
+        .stat-lbl { font-size: 8px; letter-spacing: 1.5px; margin-top: 3px; display: block; }
+        .c-cyan { color: var(--cyan); }
+        .c-red  { color: var(--red); }
+        .c-green{ color: var(--green); }
+
+        .rate-row { margin-top: 8px; }
+        .rate-label { font-size: 9px; letter-spacing: 1px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .rate-track { height: 5px; background: rgba(80,208,240,0.1); border-radius: 3px; overflow: hidden; }
+        .rate-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--red)); border-radius: 3px; transition: width 0.6s; }
+
+        .country-row {
+            display: flex; align-items: center;
+            padding: 4px 0; font-size: 10px;
+            border-bottom: 1px solid rgba(80,208,240,0.08);
+        }
+        .country-row:last-child { border-bottom: none; }
+        .country-rank { color: var(--cyan); width: 14px; font-size: 9px; opacity: 0.55; }
+        .country-name { color: var(--text-bright); flex: 1; margin: 0 6px; font-size: 10px; }
+        .country-bar-wrap { flex: 1; height: 3px; background: rgba(255,255,255,0.07); border-radius: 2px; margin: 0 6px; }
+        .country-bar-fill { height: 100%; background: var(--cyan); border-radius: 2px; transition: width 0.5s; }
+        .country-cnt { color: var(--cyan); font-size: 10px; min-width: 26px; text-align: right; }
+
+        .filter-row { display: flex; gap: 6px; }
+        .fbtn {
+            flex: 1; padding: 6px 0;
+            border: 1px solid var(--border);
+            background: transparent; color: var(--text);
+            font-family: var(--mono); font-size: 9px;
+            letter-spacing: 1px; cursor: pointer;
+            border-radius: 3px; transition: all 0.2s;
+            text-transform: uppercase;
+        }
+        .fbtn:hover { border-color: var(--cyan); color: var(--cyan); }
+        .fbtn.f-all { background: rgba(80,208,240,0.13); border-color: var(--cyan); color: var(--cyan); }
+        .fbtn.f-sus { background: rgba(240,96,112,0.13); border-color: var(--red);  color: var(--red);  }
+        .fbtn.f-nor { background: rgba(80,224,160,0.13); border-color: var(--green);color: var(--green);}
+
+        #timeline {
+            position: absolute; bottom: 18px; left: 18px; right: 18px;
+            z-index: 10;
+        }
+        #timeline .card { padding: 10px 14px; }
+        #timeline-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 8px;
+        }
+        .legend { display: flex; gap: 14px; font-size: 9px; letter-spacing: 1px; }
+        .leg-item { display: flex; align-items: center; gap: 5px; }
+        .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
+        .leg-dot.r { background: var(--red);  box-shadow: 0 0 5px var(--red);  }
+        .leg-dot.b { background: var(--cyan); box-shadow: 0 0 5px var(--cyan); }
+        #timeline-svg { width: 100%; height: 55px; overflow: visible; }
+
+        #tooltip {
+            position: absolute; z-index: 50;
+            background: rgba(10,18,36,0.97); border: 1px solid var(--cyan);
+            border-radius: 4px; padding: 8px 12px;
+            font-size: 10px; pointer-events: none;
+            display: none; letter-spacing: 1px;
+        }
+        #tooltip .t-ip  { color: var(--text-bright); margin-bottom: 3px; }
+        #tooltip .t-ts  { color: var(--text); font-size: 9px; margin-bottom: 2px; }
+        #tooltip .t-sus { font-size: 10px; font-weight: bold; }
+        #tooltip .t-sus.s { color: var(--red);   }
+        #tooltip .t-sus.n { color: var(--green); }
+    </style>
+</head>
+<body>
+    <canvas id="globe-canvas"></canvas>
+    <div id="tooltip">
+        <div class="t-ip" id="tt-ip"></div>
+        <div class="t-ts" id="tt-ts"></div>
+        <div class="t-sus" id="tt-sus"></div>
+    </div>
+
+    <div id="left-panel">
+        <div class="card">
+            <div class="card-title">// Live Statistics</div>
+            <div class="stat-grid">
+                <div class="stat-box"><span class="stat-num c-cyan" id="st-total">0</span><span class="stat-lbl c-cyan">TOTAL</span></div>
+                <div class="stat-box"><span class="stat-num c-red"  id="st-sus">0</span>  <span class="stat-lbl c-red">THREAT</span></div>
+                <div class="stat-box"><span class="stat-num c-green" id="st-nor">0</span><span class="stat-lbl c-green">CLEAN</span></div>
+            </div>
+            <div class="rate-row">
+                <div class="rate-label"><span>Threat Rate</span><span id="rate-pct" class="c-red">0%</span></div>
+                <div class="rate-track"><div class="rate-fill" id="rate-bar" style="width:0%"></div></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">// Top Source Countries</div>
+            <div id="top-countries"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">// Display Filter</div>
+            <div class="filter-row">
+                <button class="fbtn f-all" id="btn-all" onclick="setFilter('all')">All</button>
+                <button class="fbtn" id="btn-sus" onclick="setFilter('sus')">Threats</button>
+                <button class="fbtn" id="btn-nor" onclick="setFilter('nor')">Clean</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="timeline">
+        <div class="card">
+            <div id="timeline-header">
+                <div class="card-title" style="margin-bottom:0">// Activity Timeline</div>
+                <div class="legend">
+                    <div class="leg-item"><div class="leg-dot r"></div><span>Threats</span></div>
+                    <div class="leg-item"><div class="leg-dot b"></div><span>Clean</span></div>
+                </div>
+            </div>
+            <svg id="timeline-svg"></svg>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+    <script>
+    const canvas   = document.getElementById('globe-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const scene  = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 2.6;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const sun = new THREE.DirectionalLight(0xffffff, 0.7);
+    sun.position.set(5, 3, 4);
+    scene.add(sun);
+
+    // звёзды
+    const starBuf = new Float32Array(3000 * 3);
+    for (let i = 0; i < starBuf.length; i++) starBuf[i] = (Math.random() - 0.5) * 600;
+    const starGeo = new THREE.BufferGeometry();
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starBuf, 3));
+    scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.5, transparent: true, opacity: 0.5 })));
+
+    const globeGroup = new THREE.Group();
+    scene.add(globeGroup);
+
+    // ─── ТЕКСТУРА ─────────────────────────────────────────────────────────────
+    // рисуем equirectangular текстуру на canvas: океан + суша
+    // ВАЖНО: Three.js UV сферы идёт в обратную сторону по долготе,
+    // поэтому проецируем с lon зеркально (180 - lon) чтобы полюс был правильным
+    function buildGlobeTexture(world) {
+        const W = 2048, H = 1024;
+        const c = document.createElement('canvas');
+        c.width = W; c.height = H;
+        const ctx = c.getContext('2d');
+
+        // океан
+        ctx.fillStyle = '#1a3a52';
+        ctx.fillRect(0, 0, W, H);
+
+        // суша
+        ctx.fillStyle = '#2e4a30';
+
+        // зеркалим lon по горизонтали чтобы совпало с UV маппингом Three.js
+        const project = ([lon, lat]) => [
+            (180 - lon) / 360 * W,
+            (90  - lat) / 180 * H
+        ];
+
+        const drawPolygon = (rings) => {
+            const path = new Path2D();
+            rings.forEach(ring => {
+                ring.forEach(([lon, lat], i) => {
+                    const [x, y] = project([lon, lat]);
+                    i === 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+                });
+                path.closePath();
+            });
+            ctx.fill(path, 'evenodd');
+        };
+
+        const land = topojson.feature(world, world.objects.land);
+        const features = Array.isArray(land.features) ? land.features : [land];
+        features.forEach(f => {
+            if (!f.geometry) return;
+            if (f.geometry.type === 'Polygon')
+                drawPolygon(f.geometry.coordinates);
+            else if (f.geometry.type === 'MultiPolygon')
+                f.geometry.coordinates.forEach(poly => drawPolygon(poly));
+        });
+
+        // сетка координат (лёгкая, только для ориентации)
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        ctx.lineWidth = 1;
+        for (let lon = -180; lon <= 180; lon += 30) {
+            const x = (180 - lon) / 360 * W;
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let lat = -90; lat <= 90; lat += 30) {
+            const y = (90 - lat) / 180 * H;
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
+
+        const tex = new THREE.CanvasTexture(c);
+        return tex;
+    }
+
+    // ─── КООРДИНАТЫ → 3D ─────────────────────────────────────────────────────
+    // стандартная сферическая проекция: lat/lon → XYZ
+    function ll2v3(lat, lon, r = 1) {
+        const phi   = (90 - lat)  * (Math.PI / 180);
+        const theta = (lon + 180) * (Math.PI / 180);
+        return new THREE.Vector3(
+            -r * Math.sin(phi) * Math.cos(theta),
+             r * Math.cos(phi),
+             r * Math.sin(phi) * Math.sin(theta)
+        );
+    }
+
+    // ─── ГРАНИЦЫ СТРАН ───────────────────────────────────────────────────────
+    function drawBorders(world) {
+        const mat  = new THREE.LineBasicMaterial({ color: 0x6aaccc, transparent: true, opacity: 0.45 });
+        const draw = coords => {
+            const pts = coords.map(([lo, la]) => ll2v3(la, lo, 1.001));
+            globeGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+        };
+        const borders = topojson.mesh(world, world.objects.countries, (a, b) => a !== b);
+        if (borders.type === 'MultiLineString') borders.coordinates.forEach(draw);
+        else if (borders.type === 'LineString') draw(borders.coordinates);
+    }
+
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+        .then(r => r.json())
+        .then(world => {
+            const texture = buildGlobeTexture(world);
+            globeGroup.add(new THREE.Mesh(
+                new THREE.SphereGeometry(1, 64, 64),
+                new THREE.MeshPhongMaterial({ map: texture, specular: 0x223344, shininess: 8 })
+            ));
+            drawBorders(world);
+        })
+        .catch(e => {
+            console.warn('world-atlas unavailable', e);
+            globeGroup.add(new THREE.Mesh(
+                new THREE.SphereGeometry(1, 64, 64),
+                new THREE.MeshPhongMaterial({ color: 0x1a3a52 })
+            ));
+        });
+
+    // ─── ТОЧКИ ПАКЕТОВ ───────────────────────────────────────────────────────
+    const activePoints = [];
+    let currentFilter  = 'all';
+
+    function shouldShow(isSus) {
+        if (currentFilter === 'all') return true;
+        if (currentFilter === 'sus') return isSus;
+        return !isSus;
+    }
+
+    function spawnPoint(packet) {
+        const isSus = packet.suspicious > 0.5;
+        const color = isSus ? new THREE.Color(0xf06070) : new THREE.Color(0x50d0f0);
+        const r     = isSus ? 0.022 : 0.016;
+
+        const mat  = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 });
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 8), mat);
+        mesh.position.copy(ll2v3(packet.lat, packet.lon, 1.005));
+        mesh.visible = shouldShow(isSus);
+        globeGroup.add(mesh);
+
+        activePoints.push({ mesh, mat, isSus, packet });
+    }
+
+    // ─── ВРАЩЕНИЕ МЫШЬЮ ─────────────────────────────────────────────────────
+    let dragging = false, prevX = 0, prevY = 0;
+    canvas.addEventListener('mousedown', e => { dragging=true; prevX=e.clientX; prevY=e.clientY; });
+    canvas.addEventListener('mouseup',   () => dragging = false);
+    canvas.addEventListener('mouseleave',() => dragging = false);
+    canvas.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        globeGroup.rotation.x += (e.clientY - prevY) * 0.005;
+        globeGroup.rotation.y += (e.clientX - prevX) * 0.005;
+        prevX = e.clientX; prevY = e.clientY;
+    });
+
+    // ─── ТУЛТИП ──────────────────────────────────────────────────────────────
+    const raycaster = new THREE.Raycaster();
+    const mouse     = new THREE.Vector2();
+    const tooltip   = document.getElementById('tooltip');
+
+    canvas.addEventListener('mousemove', e => {
+        if (dragging) { tooltip.style.display = 'none'; return; }
+        mouse.x =  (e.clientX / window.innerWidth)  * 2 - 1;
+        mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+
+        const hits = raycaster.intersectObjects(activePoints.filter(p => p.mesh.visible).map(p => p.mesh));
+        if (hits.length > 0) {
+            const pt = activePoints.find(p => p.mesh === hits[0].object);
+            if (pt) {
+                const d = new Date(pt.packet.timestamp * 1000);
+                document.getElementById('tt-ip').textContent = pt.packet.ip || '?.?.?.?';
+                document.getElementById('tt-ts').textContent = d.toUTCString();
+                const s = document.getElementById('tt-sus');
+                if (pt.isSus) { s.textContent = '⚠ SUSPICIOUS'; s.className = 't-sus s'; }
+                else           { s.textContent = '✓ NORMAL';      s.className = 't-sus n'; }
+                tooltip.style.display = 'block';
+                tooltip.style.left = (e.clientX + 14) + 'px';
+                tooltip.style.top  = (e.clientY - 14) + 'px';
+            }
+        } else {
+            tooltip.style.display = 'none';
+        }
+    });
+
+    // ─── ДАННЫЕ ──────────────────────────────────────────────────────────────
+    let allPackets      = [];
+    let lastCount       = 0;
+    const countryCounts = {};
+    const timeBuckets   = {};
+
+    async function poll() {
+        try {
+            const res     = await fetch('http://127.0.0.1:5000/data');
+            const packets = await res.json();
+
+            if (packets.length > lastCount) {
+                packets.slice(lastCount).forEach(p => {
+                    allPackets.push(p);
+                    spawnPoint(p);
+
+                    const cc = p.country || '??';
+                    countryCounts[cc] = (countryCounts[cc] || 0) + 1;
+
+                    const bk = Math.floor(p.timestamp / 60) * 60;
+                    if (!timeBuckets[bk]) timeBuckets[bk] = { sus: 0, nor: 0 };
+                    p.suspicious > 0.5 ? timeBuckets[bk].sus++ : timeBuckets[bk].nor++;
+                });
+                lastCount = packets.length;
+                refreshPanel();
+                refreshTimeline();
+            }
+        } catch (e) {
+            // flask ещё не запущен — просто ждём
+        }
+    }
+
+    function refreshPanel() {
+        const total = allPackets.length;
+        const sus   = allPackets.filter(p => p.suspicious > 0.5).length;
+        const nor   = total - sus;
+        const rate  = total ? (sus / total * 100) : 0;
+
+        document.getElementById('st-total').textContent = total;
+        document.getElementById('st-sus').textContent   = sus;
+        document.getElementById('st-nor').textContent   = nor;
+        document.getElementById('rate-pct').textContent = rate.toFixed(1) + '%';
+        document.getElementById('rate-bar').style.width = rate.toFixed(1) + '%';
+
+        const sorted = Object.entries(countryCounts).sort((a,b) => b[1]-a[1]).slice(0, 8);
+        const maxCnt = sorted[0]?.[1] || 1;
+        document.getElementById('top-countries').innerHTML = sorted.map(([cc, cnt], i) => {
+            const pct = (cnt / maxCnt * 100).toFixed(0);
+            return `<div class="country-row">
+                <span class="country-rank">${i+1}</span>
+                <span class="country-name">${cc}</span>
+                <div class="country-bar-wrap"><div class="country-bar-fill" style="width:${pct}%"></div></div>
+                <span class="country-cnt">${cnt}</span>
+            </div>`;
+        }).join('');
+    }
+
+    function refreshTimeline() {
+        const svg = document.getElementById('timeline-svg');
+        const W   = svg.parentElement.clientWidth - 28;
+        const H   = 55;
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+        const bks = Object.entries(timeBuckets)
+            .map(([t, v]) => ({ t: +t, ...v }))
+            .sort((a, b) => a.t - b.t);
+
+        if (bks.length < 1) return;
+
+        const maxV = Math.max(...bks.map(b => b.sus + b.nor), 1);
+        const bw   = W / bks.length;
+        let html   = '';
+
+        bks.forEach((b, i) => {
+            const total = b.sus + b.nor;
+            const tH = (total / maxV) * (H - 4);
+            const sH = (b.sus   / maxV) * (H - 4);
+            const nH = tH - sH;
+            const x  = i * bw;
+            if (nH > 0) html += `<rect x="${x+1}" y="${H-nH}"  width="${bw-2}" height="${nH}" fill="#50d0f0" opacity="0.7"/>`;
+            if (sH > 0) html += `<rect x="${x+1}" y="${H-tH}" width="${bw-2}" height="${sH}" fill="#f06070" opacity="0.85"/>`;
+        });
+        html += `<line x1="0" y1="${H}" x2="${W}" y2="${H}" stroke="rgba(80,208,240,0.2)" stroke-width="1"/>`;
+        svg.innerHTML = html;
+    }
+
+    function setFilter(mode) {
+        currentFilter = mode;
+        document.getElementById('btn-all').className = 'fbtn' + (mode==='all' ? ' f-all':'');
+        document.getElementById('btn-sus').className = 'fbtn' + (mode==='sus' ? ' f-sus':'');
+        document.getElementById('btn-nor').className = 'fbtn' + (mode==='nor' ? ' f-nor':'');
+        activePoints.forEach(p => { p.mesh.visible = shouldShow(p.isSus); });
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (!dragging) globeGroup.rotation.y += 0.0015;
+        renderer.render(scene, camera);
+    }
+
+    animate();
+    poll();
+    setInterval(poll, 1000);
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        refreshTimeline();
+    });
+    </script>
+</body>
+</html>
