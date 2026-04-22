@@ -7,8 +7,8 @@ Real-time visualisation of network traffic on an interactive 3D globe.
 Requirements: Docker Desktop
 
 ```bash
-git clone https://github.com/mawk8/YOUR_REPO_NAME.git
-cd YOUR_REPO_NAME
+git clone https://github.com/mawk8/Assignment-2.git
+cd Assignment-2
 docker compose up --build
 ```
 
