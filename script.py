@@ -1,12 +1,15 @@
+import os
 import pandas as pd
 import time
 import requests
 import json
-import reverse_geocoder as rg  
+import reverse_geocoder as rg
+
+FLASK_URL = os.environ.get('FLASK_URL', 'http://127.0.0.1:5000')
 
 # Send a batch of packet data to the Flask server via POST request.
 def send_data(data):
-    url = 'http://127.0.0.1:5000/receive'
+    url = f'{FLASK_URL}/receive'
     headers = {'Content-Type': 'application/json'}
     response = requests.post(url, json=json.loads(data), headers=headers)
     return (response.status_code, response.text)
@@ -30,7 +33,7 @@ df_grouped = df.groupby('time_diff')
 
 prev_sec = 0
 for name, group_df in df_grouped:
-    #  Sleep for the difference between the current and previous timestamp
+    # Sleep for the difference between the current and previous timestamp
     time.sleep(name - prev_sec)
     prev_sec = name
 

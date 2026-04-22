@@ -1,0 +1,23 @@
+services:
+
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/data')"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  sender:
+    build:
+      context: .
+      dockerfile: Dockerfile.sender
+    environment:
+      - FLASK_URL=http://flask:5000
+    depends_on:
+      flask:
+        condition: service_healthy
